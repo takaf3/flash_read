@@ -21,28 +21,32 @@
     <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.88/dist/epub.min.js" integrity="sha384-5hxH2+gn+AuPNlIuQW5fXAfo3yKpz/LNmiM6B2Cm+S6JHgWa2BfbqYTZ2mn9ZsMa" crossorigin="anonymous"></script>
 </head>
 <body>
-    <h1>FlashRead</h1>
+    <header>
+        <h1>FlashRead <span style="font-size:0.6em;font-weight:400;opacity:0.7;">RSVP Ebook Reader</span></h1>
+    </header>
 
-    <div id="upload-section">
-        <label for="ebook-upload">Upload Ebook (PDF, EPUB):</label>
-        <input type="file" id="ebook-upload" accept=".pdf,.epub">
-    </div>
+    <div id="app-center">
+        <section id="upload-section">
+            <label for="ebook-upload">Upload Ebook (PDF, EPUB):</label>
+            <input type="file" id="ebook-upload" accept=".pdf,.epub">
+        </section>
 
-    <div id="status-area"></div>
+        <div id="status-area"></div>
 
-    <div id="main-content">
-        <div id="chapter-list-container">
-            <h3>Chapters</h3>
-            <ul id="chapter-list"></ul>
-        </div>
-        <div id="reader-section" style="display: none;">
-            <div id="flash-word"></div>
-            <div id="controls">
-                <button id="play-pause">Play</button>
-                <label for="wpm-slider">WPM:</label>
-                <input type="range" id="wpm-slider" value="300" min="50" max="1000" step="10">
-                <span id="wpm-value">300</span>
-            </div>
+        <div id="main-content">
+            <aside id="chapter-list-container">
+                <h3>Chapters</h3>
+                <ul id="chapter-list"></ul>
+            </aside>
+            <section id="reader-section" style="display: none;">
+                <div id="flash-word"></div>
+                <div id="controls">
+                    <button id="play-pause">Play</button>
+                    <label for="wpm-slider">WPM:</label>
+                    <input type="range" id="wpm-slider" value="300" min="50" max="1000" step="10">
+                    <span id="wpm-value">300</span>
+                </div>
+            </section>
         </div>
     </div>
 
