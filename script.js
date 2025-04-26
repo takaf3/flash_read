@@ -247,12 +247,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Combine text and re-setup reader
-            fullBookText = ocrTextPerPage.join('\n\n'); // Add double newline between OCR'd pages
-            logStatus("OCR process completed successfully.");
+            // Calculate start word indices for each page *before* joining
+            chapterData = []; // Reset chapter data for page navigation
+            let cumulativeWordCount = 0;
+            for (let i = 0; i < ocrTextPerPage.length; i++) {
+                const pageText = ocrTextPerPage[i];
+                const pageWords = pageText.split(/\s+/).filter(w => w.length > 0);
+                chapterData.push({
+                    title: `Page ${i + 1}`,
+                    level: 0,
+                    startWordIndex: cumulativeWordCount
+                });
+                // Add 2 words for the double newline we add when joining
+                cumulativeWordCount += pageWords.length + (i > 0 ? 2 : 0);
+            }
 
-            // Reset chapter data as OCR doesn't preserve it
-            chapterData = [];
-            displayChapters(chapterData); // This will hide the chapter list
+            fullBookText = ocrTextPerPage.join('\n\n'); // Join text *after* calculating indices
+            logStatus("OCR process completed successfully. Page navigation created.");
+
+            // Display the generated page navigation
+            displayChapters(chapterData);
 
             setupReader(fullBookText); // Re-run setup with OCR'd text
 
