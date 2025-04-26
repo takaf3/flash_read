@@ -34,9 +34,7 @@ A web application designed to read ebooks (PDF, EPUB) using the Rapid Serial Vis
     cd flash_read
     ```
 2.  **(Optional) OpenAI API Key:**
-    -   If you want to use the OCR or automatic title generation features for PDFs, you need an OpenAI API key.
-    -   Find the section in `script.js` marked with `// --- OpenAI API Key Configuration ---`.
-    -   Replace the placeholder string `YOUR_OPENAI_API_KEY` with your actual key. **Note:** For security, consider managing your API key through environment variables or a backend service in a production scenario, rather than hardcoding it in the client-side script.
+    -   If you want to use the OCR or automatic title generation features for PDFs, you will be prompted for your OpenAI API key at runtime. **Your key is never stored.**
 3.  **Run the application:**
     -   Since this is a simple client-side application, you can usually just open the `index.html` file directly in your web browser.
     -   Alternatively, you can serve the directory using a simple local web server (e.g., using Python):
@@ -52,4 +50,13 @@ A web application designed to read ebooks (PDF, EPUB) using the Rapid Serial Vis
 -   The application includes a Content Security Policy (CSP) to mitigate cross-site scripting (XSS) and data injection attacks.
 -   DOMPurify is used to sanitize EPUB content before rendering.
 -   SRI hashes are used to ensure the integrity of libraries loaded from CDNs.
--   Be cautious when adding your OpenAI API key directly into the client-side JavaScript. For real-world deployment, it's much safer to handle API calls through a backend proxy service that securely stores the key. 
+-   Be cautious when using your OpenAI API key. For real-world deployment, it's much safer to handle API calls through a backend proxy service that securely stores the key.
+
+## Notes
+
+- The RSVP display and controls are now visually centered for a better reading experience.
+- MIT licensed — free for personal or commercial use, modification, and distribution.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). 
