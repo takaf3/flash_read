@@ -169,49 +169,53 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsArrayBuffer(file);
     }
 
-    // --- OpenAI OCR Function ---
+    // --- OpenAI OCR Function (Text Extraction Only) ---
     async function performOcrWithOpenAI(pdfDoc, apiKey) {
-        const ocrTextPerPage = [];
+        const ocrTextPerPage = []; // Store only text per page
+        // const ocrPageData = []; // Removed temporary storage
         const totalPages = pdfDoc.numPages;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
+
+        let ocrSuccessful = true; // Flag to track if OCR succeeded for all pages
 
         try {
             for (let i = 1; i <= totalPages; i++) {
                 logStatus(`OCR Progress: Rendering page ${i}/${totalPages}...`);
                 const page = await pdfDoc.getPage(i);
-                const viewport = page.getViewport({ scale: 1.5 }); // Adjust scale as needed
+                const viewport = page.getViewport({ scale: 1.5 });
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
 
-                const renderContext = {
-                    canvasContext: ctx,
-                    viewport: viewport
-                };
+                const renderContext = { canvasContext: ctx, viewport: viewport };
                 await page.render(renderContext).promise;
 
-                const imageDataUrl = canvas.toDataURL('image/png'); // Use PNG for potentially better quality
+                const imageDataUrl = canvas.toDataURL('image/png');
 
-                logStatus(`OCR Progress: Sending page ${i}/${totalPages} to OpenAI...`);
+                logStatus(`OCR Progress: Sending page ${i}/${totalPages} for text extraction...`);
 
                 const requestBody = {
-                    model: "gpt-4.1-nano", // Use the specified model
+                    model: "gpt-4.1-nano", // Or gpt-4o if nano fails image input
+                    // response_format removed
                     messages: [
-                        {
+                         {
+                            role: "system",
+                            content: "You are an OCR assistant. Analyze the image and extract all text. Respond ONLY with the extracted text, nothing else."
+                        },{
                             role: "user",
                             content: [
-                                { type: "text", text: "Perform OCR on this image and return only the extracted text." },
+                                // No text prompt needed, system message is clear
                                 {
                                     type: "image_url",
                                     image_url: {
                                         url: imageDataUrl,
-                                        detail: "low" // Use low detail for potentially lower cost/faster response unless high fidelity is critical
+                                        detail: "low"
                                     }
                                 }
                             ]
                         }
                     ],
-                    max_tokens: 2000 // Adjust token limit as needed per page
+                    max_tokens: 2000 // Should be sufficient for text-only extraction per page
                 };
 
                 try {
@@ -227,59 +231,128 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) {
                         const errorData = await response.json();
                         console.error('OpenAI API Error:', errorData);
-                        throw new Error(`OpenAI API request failed for page ${i}: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                        throw new Error(`OpenAI API request failed for page ${i}: ${response.statusText} - ${errorData.error?.message}`);
                     }
 
                     const result = await response.json();
+                    // JSON parsing removed - expect plain text
                     const text = result.choices[0]?.message?.content || '';
                     ocrTextPerPage.push(text.trim());
                     logStatus(`OCR Progress: Received text for page ${i}/${totalPages}.`);
 
-                    // Add a small delay to help avoid rate limits
-                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+                    await new Promise(resolve => setTimeout(resolve, 300)); // Slightly reduced delay maybe ok
 
                 } catch (fetchError) {
                     console.error(`Fetch error during OpenAI call for page ${i}:`, fetchError);
-                    // Option: Stop OCR, or push empty string and continue?
-                    // Let's stop and report the error clearly.
-                    throw new Error(`Network or API error during OCR for page ${i}: ${fetchError.message}`);
+                    // Push empty string and continue, but flag failure
+                    ocrTextPerPage.push('');
+                    ocrSuccessful = false;
+                    logStatus(`OCR Warning: Failed to get text for page ${i}. Continuing...`, true);
+                    // No need to throw, allow process to finish
+                    // throw new Error(`Network or API error during OCR for page ${i}: ${fetchError.message}`);
                 }
             }
 
-            // Combine text and re-setup reader
-            // Calculate start word indices for each page *before* joining
-            chapterData = []; // Reset chapter data for page navigation
+            if (!ocrSuccessful) {
+                 logStatus("OCR completed, but some pages failed extraction.", true);
+            }
+
+            // --- Generate Titles (New Step) --- >
+            logStatus("OCR text extraction complete. Generating titles...");
+            let generatedTitles = await generateTitlesWithLLM(ocrTextPerPage, apiKey);
+            // < --- End Generate Titles ---
+
+            // Calculate start word indices and create chapterData
+            chapterData = [];
             let cumulativeWordCount = 0;
             for (let i = 0; i < ocrTextPerPage.length; i++) {
                 const pageText = ocrTextPerPage[i];
                 const pageWords = pageText.split(/\s+/).filter(w => w.length > 0);
                 chapterData.push({
-                    title: `Page ${i + 1}`,
+                    // Use generated title, fallback to Page #
+                    title: generatedTitles[i] || `Page ${i + 1}`,
                     level: 0,
                     startWordIndex: cumulativeWordCount
                 });
-                // Add 2 words for the double newline we add when joining
                 cumulativeWordCount += pageWords.length + (i > 0 ? 2 : 0);
             }
 
-            fullBookText = ocrTextPerPage.join('\n\n'); // Join text *after* calculating indices
-            logStatus("OCR process completed successfully. Page navigation created.");
+            fullBookText = ocrTextPerPage.join('\n\n');
+            logStatus("Chapter titles generated. Ready to read.");
 
-            // Display the generated page navigation
             displayChapters(chapterData);
-
-            setupReader(fullBookText); // Re-run setup with OCR'd text
+            setupReader(fullBookText);
 
         } catch (error) {
-            console.error('Error during OCR process:', error);
-            logStatus(`OCR failed: ${error.message}`, true);
-            // Optional: Fallback to the original (likely empty) text? Or just leave it in failed state?
-            // Let's leave it failed, user was warned.
-             readerSection.style.display = 'none'; // Hide reader on OCR failure
-             chapterListContainer.style.display = 'none'; // Hide chapters too
-        } finally {
-             // Clean up canvas? Not strictly necessary as it's created/destroyed in scope
+            // Catch errors from the main loop or title generation
+            console.error('Error during OCR/Title process:', error);
+            logStatus(`OCR/Title process failed: ${error.message}`, true);
+            readerSection.style.display = 'none';
+            chapterListContainer.style.display = 'none';
         }
+    }
+
+    // --- Function to Generate Titles Post-OCR ---
+    async function generateTitlesWithLLM(pageTexts, apiKey) {
+        if (!pageTexts || pageTexts.length === 0) return [];
+
+        // Prepare the input for the LLM - format page text clearly
+        let promptContent = "Generate a concise, relevant title (3-7 words) for the main topic of each page text provided below. Respond ONLY with a JSON array of strings, where each string is the title for the corresponding page. Example: [\"Title for Page 1\", \"Title for Page 2\", ...].\n\n";
+        pageTexts.forEach((text, index) => {
+            // Include only a snippet to avoid excessive token usage, e.g., first 500 chars
+            const snippet = text.substring(0, 500);
+            promptContent += `--- Page ${index + 1} Text Snippet ---\n${snippet}\n\n`;
+        });
+
+        const requestBody = {
+             model: "gpt-4.1-nano", // Or another suitable model
+             response_format: { type: "json_object" }, // Expecting a JSON object containing the array
+             messages: [
+                 {
+                     role: "system",
+                     content: "You are an assistant that generates concise titles for text snippets. Respond ONLY with a JSON object containing a single key 'titles' which holds an array of strings, one title per page provided. The number of titles must match the number of pages."
+                 },
+                 {
+                     role: "user",
+                     content: promptContent
+                 }
+             ],
+             max_tokens: 150 * pageTexts.length // Estimate tokens needed (adjust as needed)
+         };
+
+         try {
+            logStatus(`Sending ${pageTexts.length} page snippets for title generation...`);
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                 method: "POST",
+                 headers: {
+                     "Content-Type": "application/json",
+                     "Authorization": `Bearer ${apiKey}`
+                 },
+                 body: JSON.stringify(requestBody)
+             });
+
+             if (!response.ok) {
+                 const errorData = await response.json();
+                 console.error('OpenAI API Error (Title Generation):', errorData);
+                 throw new Error(`Title generation failed: ${response.statusText} - ${errorData.error?.message}`);
+             }
+
+             const result = await response.json();
+             const content = JSON.parse(result.choices[0]?.message?.content);
+
+             if (content && Array.isArray(content.titles) && content.titles.length === pageTexts.length) {
+                 logStatus("Titles generated successfully.");
+                 return content.titles;
+             } else {
+                 console.warn("Title generation response format incorrect or title count mismatch.", content);
+                 throw new Error("Failed to parse titles correctly from response.");
+             }
+
+         } catch (error) {
+             console.error("Error during title generation:", error);
+             logStatus(`Title generation failed: ${error.message}. Using default page numbers.`, true);
+             return []; // Return empty array on failure
+         }
     }
 
     async function parseEpub(file) {
