@@ -24,7 +24,7 @@ A web application designed to read ebooks (PDF, EPUB) using the Rapid Serial Vis
 -   [epub.js](http://epubjs.org/): For rendering EPUB files.
 -   [JSZip](https://stuk.github.io/jszip/): A dependency for epub.js.
 -   [DOMPurify](https://github.com/cure53/DOMPurify): For HTML sanitization.
--   [OpenAI API (GPT-4 Vision)](https://openai.com/): For optional OCR and title generation features.
+-   [OpenAI API (LLM OCR)](https://openai.com/): For optional OCR and title generation features.
 
 ## Setup & Usage
 
