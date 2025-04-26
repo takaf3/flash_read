@@ -131,6 +131,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupReader(fullBookText);
                 readerSection.style.display = 'block';
 
+                // --- OCR Fallback --- >
+                // Check if text extraction yielded meaningful content
+                const extractedWords = fullBookText.trim().split(/\s+/).filter(w => w.length > 0);
+                if (extractedWords.length < 10 && pdf.numPages > 0) { // Heuristic: less than 10 words likely failed extraction
+                    logStatus(`Initial text extraction yielded only ${extractedWords.length} words. The PDF might be image-based.`);
+                    const doOcr = confirm(`Do you want to try OCR using OpenAI (GPT-4.1-nano)?\n\nWarning:\n- This sends page images to OpenAI.\n- This can be SLOW and COSTLY depending on the PDF length and your OpenAI usage.\n- Ensure you understand OpenAI's pricing and terms.`);
+
+                    if (doOcr) {
+                        const apiKey = prompt("Please enter your OpenAI API Key:\n(Key is used client-side only for this session - NOT secure for public apps)");
+                        if (apiKey) {
+                            logStatus("Starting OCR process with OpenAI... This may take a while.");
+                            // Disable upload while OCR is running
+                            uploadInput.disabled = true;
+                            await performOcrWithOpenAI(pdf, apiKey);
+                             uploadInput.disabled = false; // Re-enable upload
+                        } else {
+                            logStatus("OCR cancelled: No API key provided.");
+                        }
+                    }
+                }
+                // < --- End OCR Fallback ---
+
             } catch (error) {
                 console.error('Error parsing PDF:', error);
                 logStatus(`Error parsing PDF: ${error.message}`, true);
@@ -145,6 +167,105 @@ document.addEventListener('DOMContentLoaded', () => {
             chapterListContainer.style.display = 'none';
         }
         reader.readAsArrayBuffer(file);
+    }
+
+    // --- OpenAI OCR Function ---
+    async function performOcrWithOpenAI(pdfDoc, apiKey) {
+        const ocrTextPerPage = [];
+        const totalPages = pdfDoc.numPages;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        try {
+            for (let i = 1; i <= totalPages; i++) {
+                logStatus(`OCR Progress: Rendering page ${i}/${totalPages}...`);
+                const page = await pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 }); // Adjust scale as needed
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+
+                const imageDataUrl = canvas.toDataURL('image/png'); // Use PNG for potentially better quality
+
+                logStatus(`OCR Progress: Sending page ${i}/${totalPages} to OpenAI...`);
+
+                const requestBody = {
+                    model: "gpt-4.1-nano", // Use the specified model
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                { type: "text", text: "Perform OCR on this image and return only the extracted text." },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: imageDataUrl,
+                                        detail: "low" // Use low detail for potentially lower cost/faster response unless high fidelity is critical
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens: 2000 // Adjust token limit as needed per page
+                };
+
+                try {
+                    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error('OpenAI API Error:', errorData);
+                        throw new Error(`OpenAI API request failed for page ${i}: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.choices[0]?.message?.content || '';
+                    ocrTextPerPage.push(text.trim());
+                    logStatus(`OCR Progress: Received text for page ${i}/${totalPages}.`);
+
+                    // Add a small delay to help avoid rate limits
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+
+                } catch (fetchError) {
+                    console.error(`Fetch error during OpenAI call for page ${i}:`, fetchError);
+                    // Option: Stop OCR, or push empty string and continue?
+                    // Let's stop and report the error clearly.
+                    throw new Error(`Network or API error during OCR for page ${i}: ${fetchError.message}`);
+                }
+            }
+
+            // Combine text and re-setup reader
+            fullBookText = ocrTextPerPage.join('\n\n'); // Add double newline between OCR'd pages
+            logStatus("OCR process completed successfully.");
+
+            // Reset chapter data as OCR doesn't preserve it
+            chapterData = [];
+            displayChapters(chapterData); // This will hide the chapter list
+
+            setupReader(fullBookText); // Re-run setup with OCR'd text
+
+        } catch (error) {
+            console.error('Error during OCR process:', error);
+            logStatus(`OCR failed: ${error.message}`, true);
+            // Optional: Fallback to the original (likely empty) text? Or just leave it in failed state?
+            // Let's leave it failed, user was warned.
+             readerSection.style.display = 'none'; // Hide reader on OCR failure
+             chapterListContainer.style.display = 'none'; // Hide chapters too
+        } finally {
+             // Clean up canvas? Not strictly necessary as it's created/destroyed in scope
+        }
     }
 
     async function parseEpub(file) {
