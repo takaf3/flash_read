@@ -5,15 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlashRead</title>
     <link rel="stylesheet" href="style.css">
-    <!-- pdf.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <!-- Security: Strict Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; connect-src 'self';">
+    <!-- DOMPurify for sanitizing untrusted HTML (pinned + SRI) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.5/purify.min.js" integrity="sha512-B9zdWx6OYoejr1K8jg5s9z00eJl0S549zYSf7TGOgxvUJNXqxkbfYLMQF+eNXm43X2w9eRIBVn2nbUViH3szmQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- pdf.js library (pinned version + SRI) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js" integrity="sha512-t2JWqzirxOmR9MZKu+BMz0TNHe55G5BZ/tfTmXMlxpUY8tsTo3QMD27QGoYKZKFAraIPDhFv56HLdN11ctmiTQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
         // Required for pdf.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
     </script>
-    <!-- epub.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script> <!-- Dependency for epub.js -->
-    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <!-- JSZip dependency for epub.js (pinned + SRI) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-PvczjSSA/LpCut6wPd39eJKnnk0jAdTK2YkW9uyqM6X+hAgjdXMo0ZW69qSxpQ5lPFUSCwkGJowqop9jOyVB6g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- epub.js (pinned + SRI) -->
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.88/dist/epub.min.js" integrity="sha384-5hxH2+gn+AuPNlIuQW5fXAfo3yKpz/LNmiM6B2Cm+S6JHgWa2BfbqYTZ2mn9ZsMa" crossorigin="anonymous"></script>
 </head>
 <body>
     <h1>FlashRead</h1>

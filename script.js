@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     hiddenDiv.style.display = 'none';
                     document.body.appendChild(hiddenDiv);
                 }
+                // renderTo still puts content into hidden div; ensure the container is inert
                 const rendition = book.renderTo(hiddenDiv.id, { width: 600, height: 400 });
                 await book.ready;
                 if (book.spine && book.spine.items.length > 0) {
@@ -393,8 +394,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const contents = await book.load(section.href);
+                    // Sanitize with DOMPurify to strip any inline scripts/styles
+                    const cleanHtml = DOMPurify.sanitize(contents, {SAFE_FOR_JQUERY: true});
                     const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = contents;
+                    tempDiv.innerHTML = cleanHtml;
                     const sectionText = (tempDiv.textContent || tempDiv.innerText || '').trim();
                     const sectionWords = sectionText.split(/\s+/).filter(w => w.length > 0);
 
