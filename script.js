@@ -3,7 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const readerSection = document.getElementById('reader-section');
     const flashWordDiv = document.getElementById('flash-word');
     const playPauseButton = document.getElementById('play-pause');
-    const wpmInput = document.getElementById('wpm');
+    const wpmSlider = document.getElementById('wpm-slider');
+    const wpmValueSpan = document.getElementById('wpm-value');
+    const statusArea = document.getElementById('status-area');
 
     let words = [];
     let currentWordIndex = 0;
@@ -12,26 +14,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     uploadInput.addEventListener('change', handleFileUpload);
     playPauseButton.addEventListener('click', togglePlayPause);
-    wpmInput.addEventListener('change', updateSpeed);
+    wpmSlider.addEventListener('input', handleWpmChange);
+
+    // --- Helper function for logging to UI ---
+    function logStatus(message, isError = false) {
+        console.log(`Status: ${message}` + (isError ? ' (Error)' : ''));
+        statusArea.textContent = message;
+        statusArea.style.color = isError ? 'red' : '#333';
+    }
 
     function handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        console.log(`File selected: ${file.name}, type: ${file.type}`);
+        logStatus(`File selected: ${file.name} (${file.type})`);
 
         // Reset UI elements before parsing
         readerSection.style.display = 'none'; // Hide reader until text is ready
         resetReader(); // Clear previous state
-        flashWordDiv.textContent = 'Loading...'; // Indicate loading
 
         if (file.type === 'application/pdf') {
+            logStatus('Parsing PDF...');
             parsePdf(file);
         } else if (file.type === 'application/epub+zip') {
+            logStatus('Parsing EPUB...');
             parseEpub(file);
         } else {
-            alert('Unsupported file type. Please upload PDF or EPUB.');
-            flashWordDiv.textContent = ''; // Clear loading message
+            logStatus('Unsupported file type. Please upload PDF or EPUB.', true);
         }
     }
 
@@ -42,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const typedArray = new Uint8Array(e.target.result);
             try {
                 const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
-                console.log(`PDF loaded: ${pdf.numPages} pages`);
+                logStatus(`PDF loaded: ${pdf.numPages} pages. Extracting text...`);
                 let fullText = '';
 
                 for (let i = 1; i <= pdf.numPages; i++) {
@@ -54,21 +63,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     fullText += pageText + '\n'; // Add newline between pages
                 }
 
-                console.log("PDF text extracted.");
+                logStatus("PDF text extracted successfully.");
                 setupReader(fullText);
                 readerSection.style.display = 'block'; // Show reader section now
 
             } catch (error) {
                 console.error('Error parsing PDF:', error);
-                alert(`Error parsing PDF: ${error.message}`);
-                flashWordDiv.textContent = 'Error loading PDF.';
+                logStatus(`Error parsing PDF: ${error.message}`, true);
             }
         };
 
         reader.onerror = (e) => {
             console.error('FileReader error:', e);
-            alert('Error reading file.');
-             flashWordDiv.textContent = 'Error reading file.';
+            logStatus('Error reading file.', true);
         }
 
         reader.readAsArrayBuffer(file);
@@ -81,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const arrayBuffer = e.target.result;
             try {
                 const book = ePub(arrayBuffer);
-                console.log("EPUB loaded.");
+                logStatus("EPUB loaded. Rendering (hidden) to extract text...");
                 // epub.js needs to render the book to extract text accurately.
                 // We'll create a hidden div for rendering.
                 let hiddenDiv = document.getElementById('epub-render-area');
@@ -95,27 +102,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rendition = book.renderTo(hiddenDiv.id, { width: 600, height: 400 }); // Dimensions don't matter much as it's hidden
                 await book.ready; // Wait for the book metadata
                 await rendition.display(); // Necessary to process content
-                await book.locations.generate(1000); // Generate locations for better processing (adjust chars per item if needed)
+                // Generate locations based on approx 1000 chars per chunk, helps process content
+                // Increase number for potentially faster processing but less granularity
+                const locations = await book.locations.generate(1000);
 
-                console.log("EPUB rendering complete (hidden).");
+                logStatus("EPUB rendered. Extracting text from sections...");
 
                 let fullText = '';
-                // Iterate through the spine (content sections) of the book
-                for (const section of book.spine.items) {
-                    await section.load(book.load.bind(book)); // Load the section content
-                    // Extract text from the loaded section's document body
-                    const sectionBody = section.document.body;
-                    if (sectionBody) {
-                        // Getting textContent is a simple way, might need refinement for complex structures
-                        fullText += sectionBody.textContent.trim() + '\n\n'; // Add space between sections
-                    }
-                    section.unload(); // Unload to free memory
+                const allSections = book.spine.items;
+
+                // Sequentially load and process each section's content
+                for (const section of allSections) {
+                    // Get the content of the section (might return HTML)
+                    const contents = await book.load(section.href);
+                    // Create a temporary div to parse the HTML content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = contents;
+                    // Extract text content, trim whitespace
+                    const sectionText = tempDiv.textContent || tempDiv.innerText || '';
+                    fullText += sectionText.trim() + '\n\n';
                 }
 
-                 console.log("EPUB text extracted.");
+                 logStatus("EPUB text extracted successfully.");
                  if (!fullText) {
                     console.warn("Could not extract text from EPUB. It might be image-based or have unusual formatting.");
-                    alert("Could not extract text from this EPUB.");
+                    logStatus("Warning: Could not extract text from this EPUB.", true);
                  }
                 setupReader(fullText);
                 readerSection.style.display = 'block'; // Show reader section now
@@ -123,17 +134,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error('Error parsing EPUB:', error);
-                alert(`Error parsing EPUB: ${error.message}`);
-                flashWordDiv.textContent = 'Error loading EPUB.';
-                 let hiddenDiv = document.getElementById('epub-render-area');
-                 if (hiddenDiv) hiddenDiv.remove(); // Clean up if error occurred
+                logStatus(`Error parsing EPUB: ${error.message}`, true);
             }
         };
 
         reader.onerror = (e) => {
             console.error('FileReader error:', e);
-            alert('Error reading file.');
-            flashWordDiv.textContent = 'Error reading file.';
+            logStatus('Error reading file.', true);
         }
 
         reader.readAsArrayBuffer(file);
@@ -143,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         words = text.split(/\s+/).filter(word => word.length > 0);
         currentWordIndex = 0;
         flashWordDiv.textContent = words.length > 0 ? words[0] : '';
-        console.log(`Loaded ${words.length} words.`);
+        logStatus(`Ready to read: ${words.length} words loaded.`);
     }
 
     function resetReader() {
@@ -189,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const wpm = parseInt(wpmInput.value, 10);
+        const wpm = parseInt(wpmSlider.value, 10);
         const delay = 60000 / wpm; // milliseconds per word
 
         intervalId = setTimeout(() => {
@@ -207,11 +214,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSpeed() {
         if (isPlaying) {
-            // If playing, stop and restart with the new speed
             stopReading();
             startReading();
         }
-         console.log(`Speed updated to ${wpmInput.value} WPM`);
+        console.log(`Speed updated to ${wpmSlider.value} WPM`);
+    }
+
+    function handleWpmChange() {
+        wpmValueSpan.textContent = wpmSlider.value;
+        updateSpeed();
     }
 
 }); 

@@ -23,12 +23,15 @@
         <input type="file" id="ebook-upload" accept=".pdf,.epub">
     </div>
 
+    <div id="status-area"></div>
+
     <div id="reader-section" style="display: none;">
         <div id="flash-word"></div>
         <div id="controls">
             <button id="play-pause">Play</button>
-            <label for="wpm">WPM:</label>
-            <input type="number" id="wpm" value="300" min="50" step="10">
+            <label for="wpm-slider">WPM:</label>
+            <input type="range" id="wpm-slider" value="300" min="50" max="1000" step="10">
+            <span id="wpm-value">300</span>
         </div>
     </div>
 
