@@ -462,9 +462,18 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsArrayBuffer(file);
     }
 
+    function extractWords(text) {
+        const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9faf\uF900-\uFAFF]/.test(text);
+        if (hasJapanese && window.Intl && Intl.Segmenter) {
+            const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
+            return Array.from(segmenter.segment(text), s => s.segment).filter(w => w.trim().length > 0);
+        }
+        return text.split(/\s+/).filter(word => word.length > 0);
+    }
+
     function setupReader(text, startIndex = 0) {
         fullBookText = text;
-        words = fullBookText.split(/\s+/).filter(word => word.length > 0);
+        words = extractWords(fullBookText);
         currentWordIndex = (startIndex >= 0 && startIndex < words.length) ? startIndex : 0;
 
         if (words.length > 0) {

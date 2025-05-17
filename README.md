@@ -10,6 +10,7 @@ A web application designed to read ebooks (PDF, EPUB) using the Rapid Serial Vis
     -   Play/Pause functionality.
     -   Adjustable Words Per Minute (WPM) slider (50-1000 WPM).
 -   **Chapter Navigation:** Easily jump between chapters in EPUB files.
+-   **Japanese Text Segmentation:** Uses `Intl.Segmenter` for better handling of Japanese ebooks.
 -   **(Experimental) OCR for Image-based PDFs:** Uses OpenAI Vision API to extract text from PDFs that contain images instead of selectable text.
 -   **(Experimental) Automatic Title Generation:** Generates a title using OpenAI if one cannot be extracted directly from the file metadata.
 -   **Security:**
