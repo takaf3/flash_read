@@ -593,42 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSpeed();
     }
 
-    function handleChapterClick(event) {
-        event.preventDefault();
-        const target = event.target;
-        if (target.tagName === 'A') {
-            const chapterTitle = target.textContent;
-            const chapter = chapterData.find(c => c.title === chapterTitle);
-            if (chapter) {
-                scrollToChapter(chapter.startWordIndex);
-            }
-        }
-    }
-
-    function scrollToChapter(startWordIndex) {
-        const words = fullBookText.split(/\s+/);
-        let cumulativeWordCount = 0;
-        for (let i = 0; i < words.length; i++) {
-            cumulativeWordCount += words[i].split(/\s+/).filter(w => w.length > 0).length;
-            if (cumulativeWordCount >= startWordIndex) {
-                const wordElement = document.getElementById(`word-${i}`);
-                if (wordElement) {
-                    wordElement.scrollIntoView({ behavior: 'smooth' });
-                    break;
-                }
-            }
-        }
-    }
-
-    function displayChapters(chapters) {
-        chapterList.innerHTML = '';
-        chapters.forEach(chapter => {
-            const li = document.createElement('li');
-            li.textContent = chapter.title;
-            chapterList.appendChild(li);
-        });
-        chapterListContainer.style.display = 'block';
-    }
 
     function displayChapters(toc) {
         chapterList.innerHTML = '';
